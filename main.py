@@ -72,8 +72,7 @@ def get_args():
     parser.add_argument("-j", "--workers", default=2, type=int, help="number of data loading workers")
     parser.add_argument("--epochs", default=100, type=int, help="number of total epochs")
     parser.add_argument("-b", "--batch-size", default=4, type=int, help="mini-batch size")
-    parser.add_argument("--lr", default=1e-1, type=float, help="initial learning rate")
-    parser.add_argument("--momentum", default=0.9, type=float, help="SGD momentum")
+    parser.add_argument("--lr", default=1e-4, type=float, help="initial learning rate")
     parser.add_argument("--wd", "--weight-decay", default=1e-4, type=float, dest="weight_decay",
                         help="weight decay")
     parser.add_argument("--train-size", default=1300, type=int,
@@ -195,16 +194,18 @@ def main_worker(gpu, ngpus_per_node, args):
         print(f"=> creating model (gpu:{gpu})")
         model = TCDINet(dr_mode=args.dr_mode, pretrained_vgg=pretrained_vgg)
 
-    device_ids = [0]
-    model = nn.DataParallel(model, device_ids=device_ids)
-    model = model.cuda()
-
-    if args.multiprocessing_distributed:
-        model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
-
-    criterion = SRIQALoss().cuda()
-    optimizer = torch.optim.SGD(model.parameters(), args.lr,
-                                momentum=args.momentum, weight_decay=args.weight_decay)
+    use_cuda = torch.cuda.is_available()
+    if use_cuda:
+        device_ids = [0]
+        model = nn.DataParallel(model, device_ids=device_ids)
+        model = model.cuda()
+        if args.multiprocessing_distributed:
+            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+        criterion = SRIQALoss().cuda()
+    else:
+        print("=> CUDA not available, running on CPU")
+        criterion = SRIQALoss()
+    optimizer = torch.optim.Adam(model.parameters(), args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=6, verbose=True)
 
     # Data loading
@@ -323,6 +324,7 @@ def train(train_loader, model, criterion, optimizer, epoch, writer, args):
 
         optimizer.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
 
         batch_time.update(time.time() - end)
@@ -429,8 +431,8 @@ class AverageMeter:
 
 class ResultMeter:
     def __init__(self):
-        self.y_pred_all = torch.zeros(0, dtype=torch.float64)
-        self.y_all = torch.zeros(0, dtype=torch.float64)
+        self.y_pred_all = torch.zeros(0, 1, dtype=torch.float64)
+        self.y_all = torch.zeros(0, 1, dtype=torch.float64)
         self.PLCC = 0
         self.SRCC = 0
         self.RMSE = 0

@@ -728,7 +728,7 @@ class SRIQALoss(nn.Module):
     L = mean(Huber(q_hat, q)) + lambda_plcc * (1 - PLCC_batch)
     """
 
-    def __init__(self, delta: float = 1.0 / 9.0, lambda_plcc: float = 0.5, eps: float = 1e-8):
+    def __init__(self, delta: float = 1.0 / 9.0, lambda_plcc: float = 0.5, eps: float = 1e-4):
         super().__init__()
         self.delta = delta
         self.lambda_plcc = lambda_plcc
