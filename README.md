@@ -62,67 +62,31 @@ score_dr = model_dr(
 
 ## Training
 
-### NR mode (No Reference)
-
 ```bash
-python main.py /path/to/dataset \
-    --dataset cviu17 \
-    --epochs 100 \
-    --batch-size 4
-```
+# NR mode
+python main.py /path/to/dataset --dataset cviu17 --epochs 100 --batch-size 4
 
-### DR mode (Degraded Reference)
-
-```bash
-python main.py /path/to/dataset \
-    --dataset cviu17 \
-    --dr-mode \
-    --lr-dir LRimages \
-    --epochs 100
+# DR mode
+python main.py /path/to/dataset --dataset cviu17 --dr-mode --lr-dir LRimages --epochs 100
 ```
 
 ## Evaluation
 
 ```bash
-# Evaluate on validation split
 python main.py /path/to/dataset --dataset cviu17 --evaluate --pretrained --arch checkpoint_name
-
-# Cross-dataset evaluation on Live-itW
 python cross_test.py /path/to/LiveChallenge checkpoint_name
 ```
 
 ## Ablation Study
 
-The model supports 10 ablation variants controlled via `--ablation`:
-
 ```bash
-# Single variant
 python main.py /path/to/dataset --dataset cviu17 --ablation baseline --epochs 100
-python main.py /path/to/dataset --dataset cviu17 --ablation full --epochs 100
-
-# Run all variants sequentially
 python ablation.py /path/to/dataset --dataset cviu17 --epochs 100
-
-# Run selected variants only
-python ablation.py /path/to/dataset --dataset cviu17 --variants baseline full tgb+msffb
 ```
 
-Results are saved to `result/ablation_summary.csv`.
+Available variants: `baseline`, `tgb`, `msffb`, `dcab`, `bop`, `gdib`, `tgb+msffb`, `tgb+msffb+dcab`, `tgb+msffb+dcab+bop`, `full`.
 
-| Variant | Modules | Params |
-|---------|---------|--------|
-| `baseline` | ResBlocks only | 11.8M |
-| `tgb` | + Texture Guided Block | 14.9M |
-| `msffb` | + Multi-Scale Feature Fusion | 13.3M |
-| `dcab` | + Dilated Channel Attention | 18.2M |
-| `bop` | + Bi-order Pooling | 12.8M |
-| `gdib` | + Gated Dynamic Interaction | 11.8M |
-| `tgb+msffb` | TGB + MSFFB | 16.5M |
-| `tgb+msffb+dcab` | TGB + MSFFB + DCAB | 22.9M |
-| `tgb+msffb+dcab+bop` | TGB + MSFFB + DCAB + BOP | 24.0M |
-| `full` | All modules | 26.1M |
-
-## Supported Datasets
+## Datasets
 
 | `--dataset` | Dataset |
 |-------------|---------|
@@ -134,44 +98,6 @@ Results are saved to `result/ablation_summary.csv`.
 | `realsrq` | RealSRQ *(coming soon)* |
 
 > **Coming soon**: KonIQ-10k, NBU-CIQAD
-
-### Data Preparation
-
-Expected directory structure:
-
-```
-/path/to/dataset/
-├── SRimages/              # SR images (directory name varies by dataset)
-├── mos_with_names.csv     # MOS annotations
-└── LRimages/              # LR images (only required for DR mode, same filenames as SR)
-```
-
-Train/test splits are controlled by order files at `./data/orders/{dataset}_MOS_orders.csv`, generated via `scripts/generate_order.py`.
-
-### Command-line Arguments
-
-| Argument | Description |
-|----------|-------------|
-| `data` | Path to dataset root directory |
-| `--dataset` | Dataset name (see table above) |
-| `--epochs` | Number of training epochs (default: 100) |
-| `--batch-size` | Mini-batch size (default: 4) |
-| `--lr` | Initial learning rate (default: 1e-1) |
-| `--dr-mode` | Enable DR (Degraded-Reference) mode |
-| `--lr-dir` | Directory for LR/reference images (required for DR mode) |
-| `--seed` | Random seed (default: 42) |
-| `--evaluate` | Evaluation-only mode |
-| `--pretrained` / `-p` | Load pretrained checkpoint |
-| `--arch` / `-a` | Checkpoint name (without `.pth.tar` suffix) |
-| `--tensorboard` | Enable TensorBoard logging |
-
-## Metrics
-
-Training and evaluation report:
-
-- **PLCC** — Pearson Linear Correlation Coefficient
-- **SRCC** — Spearman Rank Correlation Coefficient
-- **RMSE** — Root Mean Square Error
 
 ## Citation
 
