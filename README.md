@@ -93,13 +93,13 @@ python cross_test.py /path/to/LiveChallenge checkpoint_name
 
 ## Supported Datasets
 
-| `--dataset` | Dataset | Default Image Dir | Default MOS File |
-|-------------|---------|-------------------|------------------|
-| `cviu17` | CVIU17 | `SRimages` | `mos_with_names_cviu17.csv` |
-| `livesr` | LIVE-SR | `Imagesall` | `image_mos.csv` |
-| `sisar` | SISAR | `SR` | `MOS_with_names.csv` |
-| `qads` | QADS | `super-resolved_images` | `mos_with_names.csv` |
-| `waterloo15` | Waterloo15 (WIND) | `WIND_all` | `mos_with_names.csv` |
+| `--dataset` | Dataset |
+|-------------|---------|
+| `cviu17` | CVIU17 |
+| `livesr` | LIVE-SR |
+| `sisar` | SISAR |
+| `qads` | QADS |
+| `waterloo15` | Waterloo15 (WIND) |
 
 > **Coming soon**: RealSRQ, KonIQ-10k, NBU-CIQAD
 
