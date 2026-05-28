@@ -91,6 +91,37 @@ python main.py /path/to/dataset --dataset cviu17 --evaluate --pretrained --arch 
 python cross_test.py /path/to/LiveChallenge checkpoint_name
 ```
 
+## Ablation Study
+
+The model supports 10 ablation variants controlled via `--ablation`:
+
+```bash
+# Single variant
+python main.py /path/to/dataset --dataset cviu17 --ablation baseline --epochs 100
+python main.py /path/to/dataset --dataset cviu17 --ablation full --epochs 100
+
+# Run all variants sequentially
+python ablation.py /path/to/dataset --dataset cviu17 --epochs 100
+
+# Run selected variants only
+python ablation.py /path/to/dataset --dataset cviu17 --variants baseline full tgb+msffb
+```
+
+Results are saved to `result/ablation_summary.csv`.
+
+| Variant | Modules | Params |
+|---------|---------|--------|
+| `baseline` | ResBlocks only | 11.8M |
+| `tgb` | + Texture Guided Block | 14.9M |
+| `msffb` | + Multi-Scale Feature Fusion | 13.3M |
+| `dcab` | + Dilated Channel Attention | 18.2M |
+| `bop` | + Bi-order Pooling | 12.8M |
+| `gdib` | + Gated Dynamic Interaction | 11.8M |
+| `tgb+msffb` | TGB + MSFFB | 16.5M |
+| `tgb+msffb+dcab` | TGB + MSFFB + DCAB | 22.9M |
+| `tgb+msffb+dcab+bop` | TGB + MSFFB + DCAB + BOP | 24.0M |
+| `full` | All modules | 26.1M |
+
 ## Supported Datasets
 
 | `--dataset` | Dataset |
