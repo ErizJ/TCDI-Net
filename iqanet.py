@@ -184,7 +184,7 @@ class ImageStage(nn.Module):
     Stage 1 uses a stem to downsample input image to H/4; later stages use ResBlock.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, stage_index: int):
+    def __init__(self, in_channels: int, out_channels: int, stage_index: int, use_dcab: bool = True):
         super().__init__()
         if stage_index == 0:
             self.extractor = nn.Sequential(
@@ -196,13 +196,16 @@ class ImageStage(nn.Module):
         elif stage_index in (1, 2):
             self.extractor = ResBlock(in_channels, out_channels, stride=2)
         else:
-            # The fourth stage follows the framework diagram and keeps the deepest resolution.
             self.extractor = ResBlock(in_channels, out_channels, stride=1)
 
-        self.dcab = DCAB(out_channels)
+        self.use_dcab = use_dcab
+        self.dcab = DCAB(out_channels) if use_dcab else None
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.dcab(self.extractor(x))
+        out = self.extractor(x)
+        if self.use_dcab:
+            out = self.dcab(out)
+        return out
 
 
 class DetailBranch(nn.Module):
@@ -538,40 +541,71 @@ class TCDINet(nn.Module):
         pretrained_vgg: bool = True,
         normalize_vgg_input: bool = True,
         use_sigmoid: bool = True,
+        # Ablation flags (all default True = full model)
+        use_tgb: bool = True,
+        use_msffb: bool = True,
+        use_dcab: bool = True,
+        use_bop: bool = True,
+        use_gdib: bool = True,
     ):
         super().__init__()
         self.dr_mode = dr_mode
         self.use_sigmoid = use_sigmoid
         c1, c2, c3, c4 = branch_channels
 
+        # Store ablation flags for forward
+        self.use_tgb = use_tgb
+        self.use_msffb = use_msffb
+        self.use_dcab = use_dcab
+        self.use_bop = use_bop
+        self.use_gdib = use_gdib
+
         # Eq. (3.1)-(3.3): internal input-level decomposition
         self.decomposition = GaussianDecomposition(channels=in_channels, sigma=sigma)
 
-        # Image branch in Fig. 3-2: [ResBlock + DCAB + TGB feedback] x 4
+        # Image branch in Fig. 3-2: [ResBlock + optional DCAB + TGB feedback] x 4
         self.image_stages = nn.ModuleList([
-            ImageStage(in_channels, c1, stage_index=0),
-            ImageStage(c1, c2, stage_index=1),
-            ImageStage(c2, c3, stage_index=2),
-            ImageStage(c3, c4, stage_index=3),
-        ])
-        self.tgbs = nn.ModuleList([
-            TGB(c1, texture_channels=in_channels),
-            TGB(c2, texture_channels=in_channels),
-            TGB(c3, texture_channels=in_channels),
-            TGB(c4, texture_channels=in_channels),
+            ImageStage(in_channels, c1, stage_index=0, use_dcab=use_dcab),
+            ImageStage(c1, c2, stage_index=1, use_dcab=use_dcab),
+            ImageStage(c2, c3, stage_index=2, use_dcab=use_dcab),
+            ImageStage(c3, c4, stage_index=3, use_dcab=use_dcab),
         ])
 
-        # Detail branch for I_T. Its deepest feature provides the condition for GDIB.
+        # TGB modules (only used if use_tgb=True)
+        if use_tgb:
+            self.tgbs = nn.ModuleList([
+                TGB(c1, texture_channels=in_channels),
+                TGB(c2, texture_channels=in_channels),
+                TGB(c3, texture_channels=in_channels),
+                TGB(c4, texture_channels=in_channels),
+            ])
+        else:
+            self.tgbs = None
+
+        # Detail branch for I_T (needed for TGB condition and GDIB)
         self.detail_branch = DetailBranch(in_channels=in_channels, channels=branch_channels)
 
-        # Fig. 3-2: one GDIB after F^4, not one GDIB per stage.
-        self.gdib = GDIB(det_channels=c4, img_channels=c4, kernel_size=3, groups=gdib_groups)
+        # GDIB (only used if use_gdib=True)
+        if use_gdib:
+            self.gdib = GDIB(det_channels=c4, img_channels=c4, kernel_size=3, groups=gdib_groups)
+        else:
+            self.gdib = None
 
-        # MSFFB and BOP aggregation
-        self.msffb = MSFFB(list(branch_channels), out_channels=c4)
+        # MSFFB (only used if use_msffb=True)
+        if use_msffb:
+            self.msffb = MSFFB(list(branch_channels), out_channels=c4)
+        else:
+            self.msffb = None
 
-        # Eq. (3.15): BOP(F_Fusion)=2C, mean(F_Low)=C, var(F_High)=C -> 4C
-        nr_dim = 4 * c4
+        # Determine regressor input dimension based on active modules
+        if use_bop and use_gdib:
+            nr_dim = 4 * c4       # BOP(fusion) + mean(low) + var(high)
+        elif use_bop:
+            nr_dim = 2 * c4       # BOP(fusion) only
+        else:
+            nr_dim = c4           # GAP only
+
+        self.nr_dim = nr_dim
 
         if dr_mode:
             self.structure_branch = StructureCompensationBranch(
@@ -603,43 +637,57 @@ class TCDINet(nn.Module):
         # Input-level decomposition.
         _, detail_img = self.decomposition(sr_img)
         if x_t is not None:
-            # Only for ablation/debugging. Default implementation uses internally generated I_T.
             detail_img = x_t
 
         # Detail branch: I_T -> F_T^1...F_T^4
         detail_feats = self.detail_branch(detail_img)
 
-        # Image branch: stage-by-stage TGB feedback, matching Fig. 3-2.
+        # Image branch: stage-by-stage processing
         f = sr_img
         img_feats: List[torch.Tensor] = []
         tgb_feats: List[torch.Tensor] = []
-        for stage, tgb in zip(self.image_stages, self.tgbs):
-            stage_feat = stage(f)                  # F_I^i after ResBlock + DCAB
-            guided_feat = tgb(stage_feat, detail_img)  # F_TGB^i
-            f = stage_feat + guided_feat           # element-wise addition, sent to next stage
+        for i, stage in enumerate(self.image_stages):
+            stage_feat = stage(f)                     # F_I^i (ResBlock + optional DCAB)
+            if self.use_tgb:
+                guided_feat = self.tgbs[i](stage_feat, detail_img)  # F_TGB^i
+                f = stage_feat + guided_feat           # feedback addition
+                tgb_feats.append(guided_feat)
+            else:
+                f = stage_feat
             img_feats.append(f)
-            tgb_feats.append(guided_feat)
 
-        final_feat = img_feats[-1]                 # F^4
+        final_feat = img_feats[-1]                     # F^4
 
         # GDIB: F^4 + final detail feature -> F_Low, F_High
-        if return_features:
-            low, high, dyn_kernel = self.gdib(final_feat, detail_feats[-1], return_kernel=True)
+        dyn_kernel = None
+        if self.use_gdib:
+            if return_features:
+                low, high, dyn_kernel = self.gdib(final_feat, detail_feats[-1], return_kernel=True)
+            else:
+                low, high = self.gdib(final_feat, detail_feats[-1], return_kernel=False)
         else:
-            low, high = self.gdib(final_feat, detail_feats[-1], return_kernel=False)
-            dyn_kernel = None
+            low = final_feat
+            high = None
 
-        # MSFFB: F^1...F^4 -> F_Fusion
-        fusion = self.msffb(img_feats)
+        # MSFFB: F^1...F^4 -> F_Fusion (or just use F^4 if MSFFB is disabled)
+        if self.use_msffb:
+            fusion = self.msffb(img_feats)
+        else:
+            fusion = final_feat
 
-        # BOP and heterogeneous aggregation, Eq. (3.14)-(3.15)
-        fusion_mean, fusion_var = global_mean_var(fusion)
-        f_bop = torch.cat([fusion_mean, fusion_var], dim=1)
-
-        low_mean, _ = global_mean_var(low)
-        _, high_var = global_mean_var(high)
-
-        f_nr = torch.cat([f_bop, low_mean, high_var], dim=1)
+        # Aggregation: BOP or GAP
+        if self.use_bop:
+            fusion_mean, fusion_var = global_mean_var(fusion)
+            if self.use_gdib:
+                low_mean, _ = global_mean_var(low)
+                _, high_var = global_mean_var(high)
+                f_nr = torch.cat([fusion_mean, fusion_var, low_mean, high_var], dim=1)
+            else:
+                f_nr = torch.cat([fusion_mean, fusion_var], dim=1)
+        else:
+            # GAP: global average pooling
+            gap = F.adaptive_avg_pool2d(low if self.use_gdib else fusion, 1).flatten(1)
+            f_nr = gap
 
         if self.dr_mode:
             if lr_img is None:
@@ -664,7 +712,6 @@ class TCDINet(nn.Module):
                 "low": low,
                 "high": high,
                 "fusion": fusion,
-                "f_bop": f_bop,
                 "f_nr": f_nr,
                 "f_aux": f_aux,
                 "dynamic_kernel": dyn_kernel,
@@ -710,17 +757,66 @@ class SRIQALoss(nn.Module):
         return huber + self.lambda_plcc * plcc_loss
 
 
+# -----------------------------------------------------------------------------
+# Ablation study presets (paper Table / Figure)
+# -----------------------------------------------------------------------------
+# Each key maps to kwargs for TCDINet(…), overriding the defaults.
+# "full" is the complete model with ALL modules enabled.
+
+ABLATION_CONFIGS: Dict[str, Dict[str, bool]] = {
+    "baseline":                {"use_tgb": False, "use_msffb": False, "use_dcab": False, "use_bop": False, "use_gdib": False},
+    "tgb":                     {"use_tgb": True,  "use_msffb": False, "use_dcab": False, "use_bop": False, "use_gdib": False},
+    "msffb":                   {"use_tgb": False, "use_msffb": True,  "use_dcab": False, "use_bop": False, "use_gdib": False},
+    "dcab":                    {"use_tgb": False, "use_msffb": False, "use_dcab": True,  "use_bop": False, "use_gdib": False},
+    "bop":                     {"use_tgb": False, "use_msffb": False, "use_dcab": False, "use_bop": True,  "use_gdib": False},
+    "gdib":                    {"use_tgb": False, "use_msffb": False, "use_dcab": False, "use_bop": False, "use_gdib": True},
+    "tgb+msffb":               {"use_tgb": True,  "use_msffb": True,  "use_dcab": False, "use_bop": False, "use_gdib": False},
+    "tgb+msffb+dcab":          {"use_tgb": True,  "use_msffb": True,  "use_dcab": True,  "use_bop": False, "use_gdib": False},
+    "tgb+msffb+dcab+bop":      {"use_tgb": True,  "use_msffb": True,  "use_dcab": True,  "use_bop": True,  "use_gdib": False},
+    "full":                    {"use_tgb": True,  "use_msffb": True,  "use_dcab": True,  "use_bop": True,  "use_gdib": True},
+}
+
+
+def build_ablation_model(
+    variant: str,
+    dr_mode: bool = False,
+    pretrained_vgg: bool = True,
+    **kwargs,
+) -> TCDINet:
+    """Build a TCDINet for a named ablation variant.
+
+    Args:
+        variant: key in ABLATION_CONFIGS (e.g. "baseline", "tgb+msffb", "full").
+        dr_mode: enable DR structure compensation branch.
+        pretrained_vgg: use pretrained VGG weights in DR branch.
+
+    Returns:
+        TCDINet configured for the specified ablation variant.
+    """
+    if variant not in ABLATION_CONFIGS:
+        raise ValueError(f"Unknown ablation variant '{variant}'. Choose from: {list(ABLATION_CONFIGS.keys())}")
+    cfg = ABLATION_CONFIGS[variant]
+    cfg.update(kwargs)
+    return TCDINet(dr_mode=dr_mode, pretrained_vgg=pretrained_vgg, **cfg)
+
+
 if __name__ == "__main__":
-    # Minimal shape check. Use pretrained_vgg=False to avoid downloading weights in quick tests.
+    # Quick shape check. Use pretrained_vgg=False to avoid downloading weights.
+    print("Supported ablation variants:", list(ABLATION_CONFIGS.keys()))
     sr = torch.rand(2, 3, 128, 128)
     lr = torch.rand(2, 3, 32, 32)
 
+    # NR full model
     nr_model = TCDINet(dr_mode=False, pretrained_vgg=False)
     nr_score, nr_feats = nr_model(sr, return_features=True)
-    print("NR score:", nr_score.shape)
-    print("F_NR:", nr_feats["f_nr"].shape)
+    print(f"NR full score: {nr_score.shape}, F_NR: {nr_feats['f_nr'].shape}")
 
+    # DR full model
     dr_model = TCDINet(dr_mode=True, pretrained_vgg=False)
     dr_score, dr_feats = dr_model(sr, lr_img=lr, return_features=True)
-    print("DR score:", dr_score.shape)
-    print("F_aux:", dr_feats["f_aux"].shape)
+    print(f"DR full score: {dr_score.shape}, F_aux: {dr_feats['f_aux'].shape}")
+
+    # Ablation: baseline
+    base = build_ablation_model("baseline")
+    base_score = base(sr)
+    print(f"Baseline score: {base_score.shape}, regressor dim: {base.nr_dim}")

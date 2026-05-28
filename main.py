@@ -27,7 +27,7 @@ from dataset import (
     SISARDataset,
     Waterloo15Dataset,
 )
-from iqanet import TCDINet, SRIQALoss
+from iqanet import TCDINet, SRIQALoss, ABLATION_CONFIGS, build_ablation_model
 
 # ---------------------------------------------------------------------------
 # Dataset registry: maps --dataset name to (DatasetClass, default_images_dir, default_mos_file)
@@ -91,6 +91,10 @@ def get_args():
     parser.add_argument("-e", "--evaluate", action="store_true", help="evaluate only")
     parser.add_argument("-p", "--pretrained", action="store_true", help="load pretrained model")
     parser.add_argument("-a", "--arch", default="checkpoint", help="checkpoint name (without suffix)")
+
+    # Ablation
+    parser.add_argument("--ablation", default=None, choices=list(ABLATION_CONFIGS.keys()),
+                        help="ablation variant (overrides default full model)")
 
     # Logging
     parser.add_argument("--tensorboard", action="store_true", help="enable TensorBoard logging")
@@ -183,6 +187,10 @@ def main_worker(gpu, ngpus_per_node, args):
             dr_mode = args.dr_mode
         model = TCDINet(dr_mode=dr_mode, pretrained_vgg=pretrained_vgg)
         model.load_state_dict(state_dict)
+    elif args.ablation is not None:
+        print(f"=> creating ablation model: {args.ablation} (gpu:{gpu})")
+        model = build_ablation_model(args.ablation, dr_mode=args.dr_mode,
+                                     pretrained_vgg=pretrained_vgg)
     else:
         print(f"=> creating model (gpu:{gpu})")
         model = TCDINet(dr_mode=args.dr_mode, pretrained_vgg=pretrained_vgg)
