@@ -38,7 +38,7 @@ DATASET_CONFIG = {
     "sisar":      (SISARDataset,      "SR",                    "MOS_with_names.csv"),
     "qads":       (QADSDataset,       "super-resolved_images", "mos_with_names.csv"),
     "waterloo15": (Waterloo15Dataset, "WIND_all",              "mos_with_names.csv"),
-    # Datasets to be supported in future releases:
+    # To be enabled in future releases:
     # "realsrq":    (RealSRQDataset,     "SR",                    "mos_with_names.csv"),
     # "koniq10k":   (KonIQ10KDataset,   "1024x768",              "koniq10k_scores_and_distributions.csv"),
     # "nbuciqad":   (NBUCIQADDataset,   "Cartoon_images",        "mos_with_names.csv"),

@@ -131,8 +131,9 @@ Results are saved to `result/ablation_summary.csv`.
 | `sisar` | SISAR |
 | `qads` | QADS |
 | `waterloo15` | Waterloo15 (WIND) |
+| `realsrq` | RealSRQ *(coming soon)* |
 
-> **Coming soon**: RealSRQ, KonIQ-10k, NBU-CIQAD
+> **Coming soon**: KonIQ-10k, NBU-CIQAD
 
 ### Data Preparation
 
