@@ -1,0 +1,14 @@
+.vscode/
+__pycache__/
+.ipynb_checkpoints/
+runs/
+outputs/
+result/
+data/
+scripts/
+.DS_Store
+*~
+*.bak
+*.pyc
+*.pth.tar
+*.yml
