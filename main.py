@@ -34,12 +34,14 @@ from iqanet import TCDINet, SRIQALoss
 # ---------------------------------------------------------------------------
 DATASET_CONFIG = {
     "cviu17":     (CVIU17Dataset,     "SRimages",              "mos_with_names_cviu17.csv"),
-    "livec":      (LiveCDataset,      "Imagesall",             "image_mos.csv"),
+    "livesr":     (LiveCDataset,      "Imagesall",             "image_mos.csv"),
     "sisar":      (SISARDataset,      "SR",                    "MOS_with_names.csv"),
     "qads":       (QADSDataset,       "super-resolved_images", "mos_with_names.csv"),
     "waterloo15": (Waterloo15Dataset, "WIND_all",              "mos_with_names.csv"),
-    "realsrq":    (RealSRQDataset,     "SR",                    "mos_with_names.csv"),
-    "koniq10k":   (KonIQ10KDataset,   "1024x768",              "koniq10k_scores_and_distributions.csv"),
+    # Datasets to be supported in future releases:
+    # "realsrq":    (RealSRQDataset,     "SR",                    "mos_with_names.csv"),
+    # "koniq10k":   (KonIQ10KDataset,   "1024x768",              "koniq10k_scores_and_distributions.csv"),
+    # "nbuciqad":   (NBUCIQADDataset,   "Cartoon_images",        "mos_with_names.csv"),
 }
 
 

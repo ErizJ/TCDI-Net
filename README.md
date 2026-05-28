@@ -93,16 +93,15 @@ python cross_test.py /path/to/LiveChallenge checkpoint_name
 
 ## Supported Datasets
 
-| `--dataset` | Dataset Class | Default Image Dir | Default MOS File |
-|-------------|--------------|-------------------|------------------|
-| `cviu17` | CVIU17Dataset | `SRimages` | `mos_with_names_cviu17.csv` |
-| `livec` | LiveCDataset | `Imagesall` | `image_mos.csv` |
-| `sisar` | SISARDataset | `SR` | `MOS_with_names.csv` |
-| `qads` | QADSDataset | `super-resolved_images` | `mos_with_names.csv` |
-| `waterloo15` | Waterloo15Dataset | `WIND_all` | `mos_with_names.csv` |
-| `realsrq` | RealSRQDataset | `SR` | `mos_with_names.csv` |
-| `koniq10k` | KonIQ10KDataset | `1024x768` | `koniq10k_scores_and_distributions.csv` |
-| `nbuciqad` | NBUCIQADDataset | `Cartoon_images` | `mos_with_names.csv` |
+| `--dataset` | Dataset | Default Image Dir | Default MOS File |
+|-------------|---------|-------------------|------------------|
+| `cviu17` | CVIU17 | `SRimages` | `mos_with_names_cviu17.csv` |
+| `livesr` | LIVE-SR | `Imagesall` | `image_mos.csv` |
+| `sisar` | SISAR | `SR` | `MOS_with_names.csv` |
+| `qads` | QADS | `super-resolved_images` | `mos_with_names.csv` |
+| `waterloo15` | Waterloo15 (WIND) | `WIND_all` | `mos_with_names.csv` |
+
+> **Coming soon**: RealSRQ, KonIQ-10k, NBU-CIQAD
 
 ### Data Preparation
 
