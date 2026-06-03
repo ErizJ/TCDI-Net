@@ -12,3 +12,6 @@ scripts/
 *.pyc
 *.pth.tar
 *.yml
+
+# Temporary / debug scripts
+_*

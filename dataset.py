@@ -192,7 +192,7 @@ class RealSRQDataset(Dataset):
         mos_detail = self.mos_df.iloc[index]
         SR_image_path = os.path.join(self.SR_images_folder, str(mos_detail.SR_image))
         SR_image = self.transforms(Image.open(SR_image_path).convert("RGB"))
-        label = torch.Tensor([mos_detail.mos])
+        label = torch.Tensor([mos_detail.mos / 10.0])
 
         if self.lr_images_folder is not None:
             lr_filename = os.path.basename(str(mos_detail.SR_image))
@@ -278,7 +278,16 @@ class SISARDataset(Dataset):
         mos_detail = self.mos_df.iloc[index]
         SR_image_path = os.path.join(self.SR_images_folder, mos_detail.SR_images)
         SR_image = self.transforms(Image.open(SR_image_path).convert("RGB"))
-        label = torch.Tensor([mos_detail.MOS])
+        mos = float(mos_detail.MOS)
+        if mos >= 0.75:
+            mos = (mos - 0.75) / 0.25 * 0.3527 + 0.6473
+        elif 0.5 <= mos < 0.75:
+            mos = (mos - 0.5) / 0.25 * 0.29 + 0.3573
+        elif 0.25 <= mos < 0.5:
+            mos = (mos - 0.25) / 0.25 * 0.1743 + 0.183
+        else:
+            mos = abs(mos) / 0.25 * 0.1805 + 0.0025
+        label = torch.Tensor([mos])
 
         if self.lr_images_folder is not None:
             lr_filename = os.path.basename(mos_detail.SR_images)

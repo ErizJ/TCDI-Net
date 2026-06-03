@@ -35,11 +35,11 @@ from iqanet import TCDINet, SRIQALoss, ABLATION_CONFIGS, build_ablation_model
 DATASET_CONFIG = {
     "cviu17":     (CVIU17Dataset,     "SRimages",              "mos_with_names_cviu17.csv"),
     "livesr":     (LiveCDataset,      "Imagesall",             "image_mos.csv"),
-    "sisar":      (SISARDataset,      "SR",                    "MOS_with_names.csv"),
+    "sisar":      (SISARDataset,      "sr_images_flat",        "MOS_with_names.csv"),
     "qads":       (QADSDataset,       "super-resolved_images", "mos_with_names.csv"),
     "waterloo15": (Waterloo15Dataset, "WIND_all",              "mos_with_names.csv"),
+    "realsrq":    (RealSRQDataset,    "SR",                    "MOS_with_names.csv"),
     # To be enabled in future releases:
-    # "realsrq":    (RealSRQDataset,     "SR",                    "mos_with_names.csv"),
     # "koniq10k":   (KonIQ10KDataset,   "1024x768",              "koniq10k_scores_and_distributions.csv"),
     # "nbuciqad":   (NBUCIQADDataset,   "Cartoon_images",        "mos_with_names.csv"),
 }
@@ -171,6 +171,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # Create model
     pretrained_vgg = not args.no_pretrained_vgg
+    use_sigmoid = args.dataset != "realsrq"  # RealSRQ BT scores need raw output
     if args.pretrained:
         print("=> using pre-trained model")
         path = f"outputs/checkpoints/{args.arch}.pth.tar"
@@ -184,15 +185,18 @@ def main_worker(gpu, ngpus_per_node, args):
             dr_mode = ckpt_dr_mode.dr_mode
         else:
             dr_mode = args.dr_mode
-        model = TCDINet(dr_mode=dr_mode, pretrained_vgg=pretrained_vgg)
+        model = TCDINet(dr_mode=dr_mode, pretrained_vgg=pretrained_vgg,
+                        use_sigmoid=use_sigmoid)
         model.load_state_dict(state_dict)
     elif args.ablation is not None:
         print(f"=> creating ablation model: {args.ablation} (gpu:{gpu})")
         model = build_ablation_model(args.ablation, dr_mode=args.dr_mode,
-                                     pretrained_vgg=pretrained_vgg)
+                                     pretrained_vgg=pretrained_vgg,
+                                     use_sigmoid=use_sigmoid)
     else:
         print(f"=> creating model (gpu:{gpu})")
-        model = TCDINet(dr_mode=args.dr_mode, pretrained_vgg=pretrained_vgg)
+        model = TCDINet(dr_mode=args.dr_mode, pretrained_vgg=pretrained_vgg,
+                        use_sigmoid=use_sigmoid)
 
     use_cuda = torch.cuda.is_available()
     if use_cuda:
