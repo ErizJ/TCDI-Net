@@ -95,9 +95,8 @@ Available variants: `baseline`, `tgb`, `msffb`, `dcab`, `bop`, `gdib`, `tgb+msff
 | `sisar` | SISAR |
 | `qads` | QADS |
 | `waterloo15` | Waterloo15 (WIND) |
-| `realsrq` | RealSRQ *(coming soon)* |
+| `realsrq` | RealSRQ |
 
-> **Coming soon**: KonIQ-10k, NBU-CIQAD
 
 ## Citation
 
