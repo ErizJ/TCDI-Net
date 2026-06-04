@@ -278,6 +278,10 @@ class SISARDataset(Dataset):
         mos_detail = self.mos_df.iloc[index]
         SR_image_path = os.path.join(self.SR_images_folder, mos_detail.SR_images)
         SR_image = self.transforms(Image.open(SR_image_path).convert("RGB"))
+        # antiMapping: correct the score bias when doing WIND -> SISAR cross-dataset
+        # inference.  The piecewise linear segments and breakpoints follow the
+        # DISQ network's processing strategy on SISAR data (i.e., the MOS
+        # distribution of SISAR images as observed through the DISQ pipeline).
         mos = float(mos_detail.MOS)
         if mos >= 0.75:
             mos = (mos - 0.75) / 0.25 * 0.3527 + 0.6473
